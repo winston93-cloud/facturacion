@@ -2,22 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 2026-04-28: Fondo con tintes neutros cálidos; sin modo oscuro forzado (portal administrativo legible). */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --background: oklch(0.985 0.012 260);
+  --foreground: oklch(0.22 0.04 270);
 }
 
 body {
   color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--background);
 }
 
 @layer utilities {

@@ -1,0 +1,99 @@
+import "server-only";
+
+import type { FacturacionFormValues } from "@/lib/validations/facturacion";
+import { pool } from "@/lib/db";
+import type { DatosFacturacionRow } from "@/types/facturacion";
+
+// 2026-04-28: Todas las consultas parametrizadas; sin concatenación dinámica de SQL.
+
+const DEFAULTS_EMPTY: Omit<DatosFacturacionRow, "alumno_ref"> = {
+  moneda: "MXN",
+  rfc: "",
+  razsocial: "",
+  regfiscal: "605",
+  usocfdi: "G03",
+  codpostal: "",
+  calle: "",
+  nexterior: "",
+  ninterior: "",
+  ncolonia: "",
+  nentidad: "",
+  nmunicipio: "",
+  email: "",
+  lada: "",
+  numero: "",
+};
+
+/** Devuelve fila o objeto con valores por defecto para alta inicial. */
+export async function obtenerDatosFacturacion(
+  alumnoRef: number,
+): Promise<DatosFacturacionRow> {
+  const [rows] = await pool.query(
+    "SELECT * FROM datos_facturacion WHERE alumno_ref = ? LIMIT 1",
+    [alumnoRef],
+  );
+  const list = rows as DatosFacturacionRow[];
+  const row = list[0];
+  if (!row) {
+    return { alumno_ref: alumnoRef, ...DEFAULTS_EMPTY };
+  }
+  return row;
+}
+
+export async function upsertDatosFacturacion(
+  alumnoRef: number,
+  data: FacturacionFormValues,
+): Promise<void> {
+  await pool.execute(
+    `INSERT INTO datos_facturacion (
+      alumno_ref, moneda, rfc, razsocial, regfiscal, usocfdi,
+      codpostal, calle, nexterior, ninterior, ncolonia,
+      nentidad, nmunicipio, email, lada, numero
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    ON DUPLICATE KEY UPDATE
+      moneda = VALUES(moneda),
+      rfc = VALUES(rfc),
+      razsocial = VALUES(razsocial),
+      regfiscal = VALUES(regfiscal),
+      usocfdi = VALUES(usocfdi),
+      codpostal = VALUES(codpostal),
+      calle = VALUES(calle),
+      nexterior = VALUES(nexterior),
+      ninterior = VALUES(ninterior),
+      ncolonia = VALUES(ncolonia),
+      nentidad = VALUES(nentidad),
+      nmunicipio = VALUES(nmunicipio),
+      email = VALUES(email),
+      lada = VALUES(lada),
+      numero = VALUES(numero)`,
+    [
+      alumnoRef,
+      data.moneda,
+      data.rfc,
+      data.razsocial,
+      data.regfiscal,
+      data.usocfdi,
+      data.codpostal,
+      data.calle,
+      data.nexterior,
+      data.ninterior,
+      data.ncolonia,
+      data.nentidad,
+      data.nmunicipio,
+      data.email,
+      data.lada,
+      data.numero,
+    ],
+  );
+}
+
+/** Comprueba existencia opcional antes de iniciar sesión (mitiga fuerza bruta sobre refs). */
+export async function existeRegistroFacturacion(
+  alumnoRef: number,
+): Promise<boolean> {
+  const [rows] = await pool.query(
+    "SELECT alumno_ref FROM datos_facturacion WHERE alumno_ref = ? LIMIT 1",
+    [alumnoRef],
+  );
+  return (rows as Pick<DatosFacturacionRow, "alumno_ref">[]).length > 0;
+}

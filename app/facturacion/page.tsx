@@ -50,7 +50,7 @@ export default async function FacturacionPage() {
             </span>
           </div>
           <h1 className="font-display text-[clamp(1.5rem,4vw,2.125rem)] font-semibold text-indigo-950">
-            Alta de facturación 2026-2027
+            Alta de facturación 2025 - 2026
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-slate-600 md:text-base">
             Revise cada campo antes de guardar; la información será utilizada para

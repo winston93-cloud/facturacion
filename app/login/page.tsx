@@ -31,18 +31,12 @@ export default function LoginPage() {
             <span className="text-indigo-800">de alta de facturación</span>
           </h1>
           <p className="max-w-lg text-lg text-slate-700">
-            Completa tus datos tal como aparecen en tu constancia fiscal. La
-            conexión a la base es segura desde el servidor; no exponemos
-            credenciales en el cliente.
+            Completa tus datos tal como aparecen en tu constancia fiscal.
           </p>
           <div className="flex flex-wrap gap-4 border-t border-slate-300/70 pt-6 text-sm text-slate-600">
             <div>
               <p className="font-semibold text-indigo-900">Acceso alumno</p>
               <p>Usuario y contraseña de portal</p>
-            </div>
-            <div>
-              <p className="font-semibold text-indigo-900">Soporte</p>
-              <p>Administración financiera institucional</p>
             </div>
           </div>
         </div>

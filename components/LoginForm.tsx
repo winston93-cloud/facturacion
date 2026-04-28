@@ -81,7 +81,7 @@ export function LoginForm() {
           className="min-h-[48px] w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-900 shadow-inner focus:border-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-600/25"
         />
         <p className="mt-2 text-xs text-slate-500">
-          La contraseña institucional debe mantenerse secreta. Nunca se almacena en el cliente.
+          La contraseña institucional debe mantenerse secreta.
         </p>
       </div>
       {error ? (

@@ -8,10 +8,11 @@ import {
 import { timingSafeStringEqual } from "@/lib/auth/password";
 import {
   existeRegistroFacturacion,
+  obtenerClaveAlumnoPorRef,
   obtenerDatosFacturacion,
 } from "@/lib/data/facturacion";
 
-// 2026-04-28: Login con contraseña de portal en ENV — sustituir por consulta/usuario real antes de producción pública.
+// 2026-04-28: Login por ENV con soporte para clave maestra y clave de alumno separadas.
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -34,14 +35,36 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Referencia inválida." }, { status: 400 });
     }
 
-    const expectedPass = process.env.PORTAL_AUTH_PASSWORD ?? "";
-    if (!expectedPass) {
+    const masterPass = process.env.PORTAL_AUTH_PASSWORD ?? "";
+    if (!masterPass) {
       await sleep(450);
       console.error("[auth] Falta PORTAL_AUTH_PASSWORD");
       return NextResponse.json({ error: "Autenticación no configurada." }, { status: 503 });
     }
 
-    if (!timingSafeStringEqual(expectedPass, password)) {
+    // 2026-04-28: Si se define PORTAL_MASTER_REF, la clave maestra aplica sólo a ese usuario.
+    const masterRefRaw = process.env.PORTAL_MASTER_REF;
+    const masterRef = masterRefRaw ? Number(masterRefRaw) : NaN;
+    const hasMasterRef = Number.isFinite(masterRef) && masterRef > 0;
+    const alumnoPassFromEnv = process.env.PORTAL_ALUMNO_PASSWORD ?? "";
+
+    let authOk = false;
+    if (hasMasterRef && alumno_ref === masterRef) {
+      authOk = timingSafeStringEqual(masterPass, password);
+    } else {
+      // 2026-04-28: Contraseña de alumno se prioriza desde MySQL (alumno_detalles.alumno_clave).
+      const alumnoPassFromDb = await obtenerClaveAlumnoPorRef(alumno_ref);
+      if (alumnoPassFromDb) {
+        authOk = timingSafeStringEqual(alumnoPassFromDb, password);
+      } else if (alumnoPassFromEnv) {
+        // Fallback opcional para transición mientras no exista clave en BD.
+        authOk = timingSafeStringEqual(alumnoPassFromEnv, password);
+      } else {
+        authOk = false;
+      }
+    }
+
+    if (!authOk) {
       await sleep(400 + Math.floor(Math.random() * 220));
       return NextResponse.json(
         { error: "Credenciales incorrectas." },

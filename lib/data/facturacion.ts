@@ -97,3 +97,22 @@ export async function existeRegistroFacturacion(
   );
   return (rows as Pick<DatosFacturacionRow, "alumno_ref">[]).length > 0;
 }
+
+/** 2026-04-28: Obtiene clave del alumno desde BD legacy para autenticar por alumno_ref. */
+export async function obtenerClaveAlumnoPorRef(
+  alumnoRef: number,
+): Promise<string | null> {
+  const [rows] = await pool.query(
+    `SELECT d.alumno_clave AS clave
+     FROM alumno a
+     INNER JOIN alumno_detalles d ON d.alumno_id = a.alumno_id
+     WHERE a.alumno_ref = ?
+     LIMIT 1`,
+    [alumnoRef],
+  );
+
+  const row = (rows as Array<{ clave: string | null }>)[0];
+  const clave = row?.clave;
+  if (typeof clave !== "string") return null;
+  return clave;
+}

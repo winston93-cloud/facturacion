@@ -122,7 +122,8 @@ export async function upsertDatosFacturacion(
     );
     return { insertadas: 1, actualizadas: 0 };
   } catch (err) {
-    console.error("[facturacion] ERROR en upsert alumno_ref=${alumnoRef}:", err);
+    // 2026-05-14: Backticks para interpolar alumno_ref (en comillas dobles ${} no se sustituye).
+    console.error(`[facturacion] ERROR en upsert alumno_ref=${alumnoRef}:`, err);
     throw err;
   }
 }

@@ -58,9 +58,11 @@ export async function guardarFacturacion(
     return { ok: false, message: "Sesión inválida." };
   }
 
-  // 2026-05-14: Captura errores de BD y retorna mensaje legible al usuario.
+  // 2026-05-14: Captura errores de BD; mensaje de éxito indica INSERT vs UPDATE (visible en toast sin Vercel).
+  let resultado: { insertadas: number; actualizadas: number };
   try {
-    const resultado = await upsertDatosFacturacion(alumnoRef, parsed.data);
+    console.info(`[action] guardarFacturacion alumno_ref=${alumnoRef}`);
+    resultado = await upsertDatosFacturacion(alumnoRef, parsed.data);
     console.info("[action] facturacion guardada:", resultado);
   } catch (err) {
     console.error("[action] Error guardando facturacion:", err);
@@ -71,5 +73,9 @@ export async function guardarFacturacion(
   }
 
   revalidatePath("/facturacion");
-  return { ok: true, message: "Datos guardados correctamente." };
+  const detalle =
+    resultado.insertadas > 0
+      ? " (nuevo registro en base de datos)"
+      : " (registro actualizado)";
+  return { ok: true, message: `Datos guardados correctamente${detalle}.` };
 }

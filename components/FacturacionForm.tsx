@@ -1,21 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useFormState, useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
 
-import {
-  guardarFacturacion,
-  type FacturacionActionState,
-} from "@/app/actions/facturacion";
+import type { FacturacionSaveState } from "@/lib/facturacion/save-from-form-data";
 import {
   MONEDAS,
   REGIMENES_FISCALES,
   USO_CFDI,
 } from "@/lib/constants/cfdi";
 
-// 2026-04-28: Formulario accesible, mobile-first; envío vía Server Action (mitigación CSRF integrada en Next).
-// 2026-05-14: Agrega toast de confirmación y de error (fijo en pantalla), auto-dismiss, router.refresh() y scroll al error.
+// 2026-04-28: Formulario accesible, mobile-first.
+// 2026-05-14: Guardado vía POST /api/facturacion + credentials (la cookie no llegaba al Server Action en Vercel).
+// Toasts de éxito/error, router.refresh() y scroll al error.
 
 const inputClass =
   "min-h-[48px] w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-sm transition focus:border-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-600/20";
@@ -27,30 +24,46 @@ const errorText = (msg?: string) =>
     </p>
   ) : null;
 
-function SubmitButton() {
-  const { pending } = useFormStatus();
-  return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="min-h-[52px] w-full rounded-2xl bg-indigo-950 px-6 py-3 text-base font-semibold text-amber-100 shadow-lg shadow-indigo-950/30 transition hover:bg-indigo-900 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
-    >
-      {pending ? "Guardando…" : "Guardar datos"}
-    </button>
-  );
-}
-
 type Props = { defaults: Record<string, string> };
 
 export function FacturacionForm({ defaults }: Props) {
   const router = useRouter();
-  const [state, formAction] = useFormState(
-    guardarFacturacion,
-    undefined as FacturacionActionState | undefined,
-  );
+  const [state, setState] = useState<FacturacionSaveState | undefined>(undefined);
+  const [pending, setPending] = useState(false);
 
   const fe = state && !state.ok ? state.fieldErrors : undefined;
   const errorRef = useRef<HTMLParagraphElement>(null);
+
+  type ToastState = { visible: boolean; msg: string; tipo: "exito" | "error" };
+  const [toast, setToast] = useState<ToastState>({
+    visible: false,
+    msg: "",
+    tipo: "exito",
+  });
+
+  // 2026-05-14: Envío a API con credentials para que la cookie de sesión viaje siempre.
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setPending(true);
+    try {
+      const fd = new FormData(e.currentTarget);
+      const res = await fetch("/api/facturacion", {
+        method: "POST",
+        body: fd,
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      });
+      const body = (await res.json()) as FacturacionSaveState;
+      setState(body);
+    } catch {
+      setState({
+        ok: false,
+        message: "Error de red. Intente de nuevo.",
+      });
+    } finally {
+      setPending(false);
+    }
+  }
 
   type ToastState = { visible: boolean; msg: string; tipo: "exito" | "error" };
   const [toast, setToast] = useState<ToastState>({
@@ -143,7 +156,7 @@ export function FacturacionForm({ defaults }: Props) {
       )}
 
     <form
-      action={formAction}
+      onSubmit={onSubmit}
       className="flex flex-col gap-10"
       noValidate
     >
@@ -395,7 +408,13 @@ export function FacturacionForm({ defaults }: Props) {
       </div>
 
       <div className="flex flex-col gap-4 border-t border-slate-200/80 pt-6 sm:flex-row sm:justify-end">
-        <SubmitButton />
+        <button
+          type="submit"
+          disabled={pending}
+          className="min-h-[52px] w-full rounded-2xl bg-indigo-950 px-6 py-3 text-base font-semibold text-amber-100 shadow-lg shadow-indigo-950/30 transition hover:bg-indigo-900 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+        >
+          {pending ? "Guardando…" : "Guardar datos"}
+        </button>
       </div>
     </form>
     </>

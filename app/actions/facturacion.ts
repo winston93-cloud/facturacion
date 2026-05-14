@@ -1,81 +1,18 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import {
+  saveFacturacionFromFormData,
+  type FacturacionSaveState,
+} from "@/lib/facturacion/save-from-form-data";
 
-import { getSession } from "@/lib/auth/session";
-import { upsertDatosFacturacion } from "@/lib/data/facturacion";
-import { facturacionFormSchema } from "@/lib/validations/facturacion";
+// 2026-04-28: Server Action — delega en saveFacturacionFromFormData (misma lógica que POST /api/facturacion).
+// 2026-05-14: El formulario en cliente usa la API para enviar la cookie de sesión de forma fiable.
 
-// 2026-04-28: Server Action — validación Zod y alumno_ref sólo desde sesión verificada.
-
-export type FacturacionActionState =
-  | { ok: true; message: string }
-  | {
-      ok: false;
-      message?: string;
-      fieldErrors?: Record<string, string[] | undefined>;
-    };
+export type FacturacionActionState = FacturacionSaveState;
 
 export async function guardarFacturacion(
   _prev: FacturacionActionState | undefined,
   formData: FormData,
 ): Promise<FacturacionActionState> {
-  const session = await getSession();
-  if (!session) {
-    return { ok: false, message: "Sesión requerida. Vuelva a iniciar sesión." };
-  }
-
-  const raw = Object.fromEntries(formData.entries()) as Record<string, string>;
-  const parsed = facturacionFormSchema.safeParse({
-    moneda: raw.moneda,
-    rfc: raw.rfc,
-    razsocial: raw.razsocial,
-    regfiscal: raw.regfiscal,
-    usocfdi: raw.usocfdi,
-    codpostal: raw.codpostal,
-    calle: raw.calle,
-    nexterior: raw.nexterior,
-    ninterior: raw.ninterior ?? "",
-    ncolonia: raw.ncolonia,
-    nentidad: raw.nentidad,
-    nmunicipio: raw.nmunicipio,
-    email: raw.email,
-    lada: raw.lada ?? "",
-    numero: raw.numero,
-  });
-
-  if (!parsed.success) {
-    // 2026-05-14: Mensaje general visible + errores por campo para no dejar al usuario sin feedback.
-    return {
-      ok: false,
-      message: "Por favor corrija los campos marcados en rojo antes de guardar.",
-      fieldErrors: parsed.error.flatten().fieldErrors,
-    };
-  }
-
-  const alumnoRef = Number(session.sub);
-  if (!Number.isFinite(alumnoRef)) {
-    return { ok: false, message: "Sesión inválida." };
-  }
-
-  // 2026-05-14: Captura errores de BD; mensaje de éxito indica INSERT vs UPDATE (visible en toast sin Vercel).
-  let resultado: { insertadas: number; actualizadas: number };
-  try {
-    console.info(`[action] guardarFacturacion alumno_ref=${alumnoRef}`);
-    resultado = await upsertDatosFacturacion(alumnoRef, parsed.data);
-    console.info("[action] facturacion guardada:", resultado);
-  } catch (err) {
-    console.error("[action] Error guardando facturacion:", err);
-    return {
-      ok: false,
-      message: "Error al guardar en base de datos. Intente de nuevo o contacte soporte.",
-    };
-  }
-
-  revalidatePath("/facturacion");
-  const detalle =
-    resultado.insertadas > 0
-      ? " (nuevo registro en base de datos)"
-      : " (registro actualizado)";
-  return { ok: true, message: `Datos guardados correctamente${detalle}.` };
+  return saveFacturacionFromFormData(formData);
 }

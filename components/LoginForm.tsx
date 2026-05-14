@@ -1,12 +1,11 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 // 2026-04-28: Formulario cliente con manejo de estado; credenciales sólo en tránsito HTTPS en producción.
 
 export function LoginForm() {
-  const router = useRouter();
   const params = useSearchParams();
   const [alumno_ref, setAlumnoRef] = useState("");
   const [password, setPassword] = useState("");
@@ -35,8 +34,9 @@ export function LoginForm() {
         setError(body.error ?? "No se pudo iniciar sesión.");
         return;
       }
-      router.replace("/facturacion");
-      router.refresh();
+      // 2026-05-14: Navegación completa para que el navegador aplique Set-Cookie antes de cargar /facturacion
+      // (evita carreras con router.replace donde la cookie aún no viaja en el siguiente request).
+      window.location.assign("/facturacion");
     } catch {
       setError("Error de red. Intente de nuevo.");
     } finally {

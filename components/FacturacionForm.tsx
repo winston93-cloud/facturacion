@@ -15,7 +15,7 @@ import {
 } from "@/lib/constants/cfdi";
 
 // 2026-04-28: Formulario accesible, mobile-first; envío vía Server Action (mitigación CSRF integrada en Next).
-// 2026-05-14: Agrega toast de confirmación, auto-dismiss, router.refresh() y scroll al error.
+// 2026-05-14: Agrega toast de confirmación y de error (fijo en pantalla), auto-dismiss, router.refresh() y scroll al error.
 
 const inputClass =
   "min-h-[48px] w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-sm transition focus:border-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-600/20";
@@ -51,27 +51,42 @@ export function FacturacionForm({ defaults }: Props) {
 
   const fe = state && !state.ok ? state.fieldErrors : undefined;
   const errorRef = useRef<HTMLParagraphElement>(null);
-  const [toast, setToast] = useState<{ visible: boolean; msg: string }>({
+
+  type ToastState = { visible: boolean; msg: string; tipo: "exito" | "error" };
+  const [toast, setToast] = useState<ToastState>({
     visible: false,
     msg: "",
+    tipo: "exito",
   });
 
-  // 2026-05-14: Muestra toast de éxito, refresca datos del servidor y lo cierra tras 4 s.
+  // 2026-05-14: Dependencia [state] (referencia al objeto) para que el efecto se ejecute
+  // en CADA envío, incluso si ok y message tienen los mismos valores que el envío anterior.
+  // Bug anterior: [state?.ok, state?.message] no re-disparaba el efecto en guardados repetidos.
   useEffect(() => {
-    if (state?.ok) {
-      setToast({ visible: true, msg: state.message });
+    if (!state) return;
+
+    if (state.ok) {
+      // Guardado exitoso: muestra toast verde y refresca datos del servidor.
+      setToast({ visible: true, msg: state.message, tipo: "exito" });
       router.refresh();
-      const t = setTimeout(() => setToast({ visible: false, msg: "" }), 4000);
+      const t = setTimeout(
+        () => setToast({ visible: false, msg: "", tipo: "exito" }),
+        4000,
+      );
       return () => clearTimeout(t);
     }
-  }, [state?.ok, state?.message, router]);
 
-  // 2026-05-14: Desplaza al mensaje de error para que el usuario lo vea.
-  useEffect(() => {
-    if (state && !state.ok) {
+    if (state.message) {
+      // Error (BD, sesión o validación global): muestra toast rojo visible.
+      setToast({ visible: true, msg: state.message, tipo: "error" });
       errorRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      const t = setTimeout(
+        () => setToast({ visible: false, msg: "", tipo: "error" }),
+        6000,
+      );
+      return () => clearTimeout(t);
     }
-  }, [state]);
+  }, [state, router]);
 
   // 2026-04-28: Normaliza RFC sin espacios y en mayúsculas durante la captura.
   const onRfcInput = (e: React.FormEvent<HTMLInputElement>) => {
@@ -88,21 +103,36 @@ export function FacturacionForm({ defaults }: Props) {
 
   return (
     <>
-      {/* 2026-05-14: Toast fijo en la parte inferior de la pantalla con confirmación de guardado. */}
+      {/* 2026-05-14: Toast fijo en la parte inferior; verde para éxito, rojo para error.
+          Se muestra en CADA envío gracias a la dependencia [state] en el useEffect. */}
       {toast.visible && (
         <div
-          role="status"
-          aria-live="polite"
-          className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 flex items-center gap-3 rounded-2xl border border-emerald-300 bg-emerald-600 px-6 py-4 text-white shadow-2xl shadow-emerald-900/30 animate-in fade-in slide-in-from-bottom-4 duration-300"
+          role={toast.tipo === "error" ? "alert" : "status"}
+          aria-live={toast.tipo === "error" ? "assertive" : "polite"}
+          className={
+            "fixed bottom-6 left-1/2 z-50 -translate-x-1/2 flex max-w-sm items-center gap-3 rounded-2xl px-6 py-4 text-white shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-300 " +
+            (toast.tipo === "exito"
+              ? "border border-emerald-300 bg-emerald-600 shadow-emerald-900/30"
+              : "border border-rose-300 bg-rose-600 shadow-rose-900/30")
+          }
         >
-          <svg className="h-5 w-5 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-          </svg>
-          <span className="text-sm font-semibold">{toast.msg}</span>
+          {toast.tipo === "exito" ? (
+            <svg className="h-5 w-5 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+            </svg>
+          ) : (
+            <svg className="h-5 w-5 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+          )}
+          <span className="text-sm font-semibold leading-snug">{toast.msg}</span>
           <button
             type="button"
-            onClick={() => setToast({ visible: false, msg: "" })}
-            className="ml-2 rounded-full p-1 hover:bg-emerald-500 transition"
+            onClick={() => setToast((prev) => ({ ...prev, visible: false }))}
+            className={
+              "ml-2 rounded-full p-1 transition " +
+              (toast.tipo === "exito" ? "hover:bg-emerald-500" : "hover:bg-rose-500")
+            }
             aria-label="Cerrar"
           >
             <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>

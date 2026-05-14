@@ -28,8 +28,10 @@ const DEFAULTS_EMPTY: Omit<DatosFacturacionRow, "alumno_ref"> = {
 export async function obtenerDatosFacturacion(
   alumnoRef: number,
 ): Promise<DatosFacturacionRow> {
+  // 2026-05-14: ORDER BY id DESC — si hubo INSERTs duplicados (PK=id, sin UNIQUE en alumno_ref),
+  // el último registro es el más reciente; LIMIT 1 sin orden era indeterminado.
   const [rows] = await pool.query(
-    "SELECT * FROM datos_facturacion WHERE alumno_ref = ? LIMIT 1",
+    "SELECT * FROM datos_facturacion WHERE alumno_ref = ? ORDER BY id DESC LIMIT 1",
     [alumnoRef],
   );
   const list = rows as DatosFacturacionRow[];
@@ -40,61 +42,63 @@ export async function obtenerDatosFacturacion(
   return row;
 }
 
-// 2026-05-14: Retorna filas afectadas para distinguir INSERT vs UPDATE y detectar problemas de clave única.
+// 2026-05-14: SELECT id + UPDATE/INSERT — PK es `id`; sin UNIQUE en alumno_ref el
+// ON DUPLICATE KEY UPDATE no aplicaba. UPDATE solo por `affectedRows` falla si los datos no cambian (INSERT duplicado).
 export async function upsertDatosFacturacion(
   alumnoRef: number,
   data: FacturacionFormValues,
 ): Promise<{ insertadas: number; actualizadas: number }> {
+  const valores = [
+    data.moneda,
+    data.rfc,
+    data.razsocial,
+    data.regfiscal,
+    data.usocfdi,
+    data.codpostal,
+    data.calle,
+    data.nexterior,
+    data.ninterior,
+    data.ncolonia,
+    data.nentidad,
+    data.nmunicipio,
+    data.email,
+    data.lada,
+    data.numero,
+  ];
+
   try {
-    const [result] = await pool.execute(
+    const [existing] = await pool.query(
+      "SELECT id FROM datos_facturacion WHERE alumno_ref = ? ORDER BY id DESC LIMIT 1",
+      [alumnoRef],
+    );
+    const rowId = (existing as Array<{ id: number }>)[0]?.id;
+
+    if (rowId != null) {
+      await pool.execute(
+        `UPDATE datos_facturacion SET
+          moneda = ?, rfc = ?, razsocial = ?, regfiscal = ?, usocfdi = ?,
+          codpostal = ?, calle = ?, nexterior = ?, ninterior = ?, ncolonia = ?,
+          nentidad = ?, nmunicipio = ?, email = ?, lada = ?, numero = ?
+        WHERE id = ?`,
+        [...valores, rowId],
+      );
+      console.info(`[facturacion] UPDATE id=${rowId} alumno_ref=${alumnoRef}`);
+      return { insertadas: 0, actualizadas: 1 };
+    }
+
+    const [insertRes] = await pool.execute(
       `INSERT INTO datos_facturacion (
-        alumno_ref, moneda, rfc, razsocial, regfiscal, usocfdi,
+        moneda, rfc, razsocial, regfiscal, usocfdi,
         codpostal, calle, nexterior, ninterior, ncolonia,
-        nentidad, nmunicipio, email, lada, numero
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-      ON DUPLICATE KEY UPDATE
-        moneda     = VALUES(moneda),
-        rfc        = VALUES(rfc),
-        razsocial  = VALUES(razsocial),
-        regfiscal  = VALUES(regfiscal),
-        usocfdi    = VALUES(usocfdi),
-        codpostal  = VALUES(codpostal),
-        calle      = VALUES(calle),
-        nexterior  = VALUES(nexterior),
-        ninterior  = VALUES(ninterior),
-        ncolonia   = VALUES(ncolonia),
-        nentidad   = VALUES(nentidad),
-        nmunicipio = VALUES(nmunicipio),
-        email      = VALUES(email),
-        lada       = VALUES(lada),
-        numero     = VALUES(numero)`,
-      [
-        alumnoRef,
-        data.moneda,
-        data.rfc,
-        data.razsocial,
-        data.regfiscal,
-        data.usocfdi,
-        data.codpostal,
-        data.calle,
-        data.nexterior,
-        data.ninterior,
-        data.ncolonia,
-        data.nentidad,
-        data.nmunicipio,
-        data.email,
-        data.lada,
-        data.numero,
-      ],
+        nentidad, nmunicipio, email, lada, numero, alumno_ref
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [...valores, alumnoRef],
     );
-    // mysql2: affectedRows=1 → INSERT, affectedRows=2 → UPDATE, affectedRows=0 → sin cambios
-    const r = result as { affectedRows: number; insertId: number };
-    const insertadas = r.insertId > 0 && r.affectedRows === 1 ? 1 : 0;
-    const actualizadas = r.affectedRows >= 1 && r.insertId === 0 ? 1 : 0;
+    const ins = insertRes as { affectedRows: number; insertId: number };
     console.info(
-      `[facturacion] upsert alumno_ref=${alumnoRef} affectedRows=${r.affectedRows} insertId=${r.insertId}`,
+      `[facturacion] INSERT alumno_ref=${alumnoRef} affectedRows=${ins.affectedRows} insertId=${ins.insertId}`,
     );
-    return { insertadas, actualizadas };
+    return { insertadas: 1, actualizadas: 0 };
   } catch (err) {
     console.error("[facturacion] Error al guardar datos_facturacion:", err);
     throw err;

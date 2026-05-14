@@ -45,12 +45,13 @@ export function PortalHeader({ session }: Props) {
           >
             Perfil (sitio institucional)
           </Link>
-          <Link
+          {/* 2026-05-14: <Link> prefetch ejecuta GET a esta URL y borraba la cookie sin clic — usar <a> o POST para logout. */}
+          <a
             href="/api/auth/logout"
             className="inline-flex min-h-[44px] items-center justify-center rounded-full bg-rose-700 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-800"
           >
             Cerrar sesión
-          </Link>
+          </a>
         </nav>
       </div>
     </header>

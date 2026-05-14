@@ -4,11 +4,11 @@ import { revalidatePath } from "next/cache";
 
 import { getSession } from "@/lib/auth/session";
 import { upsertDatosFacturacion } from "@/lib/data/facturacion";
+import type { SesionUsuario } from "@/types/facturacion";
 import { facturacionFormSchema } from "@/lib/validations/facturacion";
 
 // 2026-05-14: Lógica compartida entre Server Action y POST /api/facturacion.
-// En Vercel el POST del Server Action a veces no lleva la cookie de sesión; el fetch
-// explícito del cliente a la API sí envía credentials y getSession() funciona.
+// session explícita: la API pasa la sesión leída de NextRequest.cookies (más fiable que cookies()).
 
 export type FacturacionSaveState =
   | { ok: true; message: string }
@@ -20,8 +20,13 @@ export type FacturacionSaveState =
 
 export async function saveFacturacionFromFormData(
   formData: FormData,
+  /** Si se omite, se usa getSession() (Server Action / RSC). Si se pasa, debe venir de NextRequest en la API. */
+  sessionFromRequest?: SesionUsuario | null,
 ): Promise<FacturacionSaveState> {
-  const session = await getSession();
+  const session =
+    sessionFromRequest !== undefined
+      ? sessionFromRequest
+      : await getSession();
   if (!session) {
     return { ok: false, message: "Sesión requerida. Vuelva a iniciar sesión." };
   }

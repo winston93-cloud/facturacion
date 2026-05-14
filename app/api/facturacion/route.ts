@@ -1,9 +1,11 @@
+import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
+import { getSessionFromRequest } from "@/lib/auth/session-from-request";
 import { saveFacturacionFromFormData } from "@/lib/facturacion/save-from-form-data";
 
-// 2026-05-14: Guardado vía POST con cookie enviada por el navegador (credentials).
-// Mitiga el caso en que el POST del Server Action no incluye la sesión en Vercel.
+// 2026-05-14: Guardado vía POST con cookie; sesión leída de NextRequest.cookies (fiable en Vercel).
+export const dynamic = "force-dynamic";
 
 function isSameSiteOrigin(request: Request): boolean {
   const origin = request.headers.get("origin");
@@ -17,7 +19,7 @@ function isSameSiteOrigin(request: Request): boolean {
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   if (!isSameSiteOrigin(request)) {
     return NextResponse.json(
       { ok: false, message: "Origen no permitido." } as const,
@@ -35,6 +37,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const result = await saveFacturacionFromFormData(formData);
+  const session = await getSessionFromRequest(request);
+  const result = await saveFacturacionFromFormData(formData, session);
   return NextResponse.json(result);
 }

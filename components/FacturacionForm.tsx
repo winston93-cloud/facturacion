@@ -65,13 +65,6 @@ export function FacturacionForm({ defaults }: Props) {
     }
   }
 
-  type ToastState = { visible: boolean; msg: string; tipo: "exito" | "error" };
-  const [toast, setToast] = useState<ToastState>({
-    visible: false,
-    msg: "",
-    tipo: "exito",
-  });
-
   // 2026-05-14: Dependencia [state] (referencia al objeto) para que el efecto se ejecute
   // en CADA envío, incluso si ok y message tienen los mismos valores que el envío anterior.
   // Bug anterior: [state?.ok, state?.message] no re-disparaba el efecto en guardados repetidos.

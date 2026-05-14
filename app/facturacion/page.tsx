@@ -58,7 +58,12 @@ export default async function FacturacionPage() {
           </p>
         </div>
 
-        <FacturacionForm defaults={filaAFallbacks(datos)} />
+        {/* 2026-05-14: key basado en los datos de BD — cuando cambian, React desmonta y
+            remonta FacturacionForm con los defaultValue actualizados (inputs no controlados). */}
+        <FacturacionForm
+          key={JSON.stringify(filaAFallbacks(datos))}
+          defaults={filaAFallbacks(datos)}
+        />
       </main>
     </div>
   );

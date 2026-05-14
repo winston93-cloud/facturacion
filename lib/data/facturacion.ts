@@ -44,6 +44,7 @@ export async function obtenerDatosFacturacion(
 
 // 2026-05-14: SELECT id + UPDATE/INSERT — PK es `id`; sin UNIQUE en alumno_ref el
 // ON DUPLICATE KEY UPDATE no aplicaba. UPDATE solo por `affectedRows` falla si los datos no cambian (INSERT duplicado).
+// 2026-05-14: Logs detallados en cada paso para diagnosticar problemas de BD en producción.
 export async function upsertDatosFacturacion(
   alumnoRef: number,
   data: FacturacionFormValues,
@@ -66,15 +67,33 @@ export async function upsertDatosFacturacion(
     data.numero,
   ];
 
+  console.info(
+    `[facturacion] upsert — alumno_ref=${alumnoRef} campos:`,
+    JSON.stringify({
+      moneda: data.moneda,
+      rfc: data.rfc,
+      codpostal: data.codpostal,
+      calle: data.calle,
+      ncolonia: data.ncolonia,
+      nentidad: data.nentidad,
+      nmunicipio: data.nmunicipio,
+    }),
+  );
+
   try {
     const [existing] = await pool.query(
       "SELECT id FROM datos_facturacion WHERE alumno_ref = ? ORDER BY id DESC LIMIT 1",
       [alumnoRef],
     );
-    const rowId = (existing as Array<{ id: number }>)[0]?.id;
+    const rows = existing as Array<{ id: number }>;
+    const rowId = rows[0]?.id;
+
+    console.info(
+      `[facturacion] SELECT resultado — filas encontradas: ${rows.length} rowId: ${rowId ?? "null (INSERT)"}`,
+    );
 
     if (rowId != null) {
-      await pool.execute(
+      const [updateRes] = await pool.execute(
         `UPDATE datos_facturacion SET
           moneda = ?, rfc = ?, razsocial = ?, regfiscal = ?, usocfdi = ?,
           codpostal = ?, calle = ?, nexterior = ?, ninterior = ?, ncolonia = ?,
@@ -82,7 +101,10 @@ export async function upsertDatosFacturacion(
         WHERE id = ?`,
         [...valores, rowId],
       );
-      console.info(`[facturacion] UPDATE id=${rowId} alumno_ref=${alumnoRef}`);
+      const u = updateRes as { affectedRows: number; changedRows: number };
+      console.info(
+        `[facturacion] UPDATE id=${rowId} — affectedRows=${u.affectedRows} changedRows=${u.changedRows}`,
+      );
       return { insertadas: 0, actualizadas: 1 };
     }
 
@@ -96,11 +118,11 @@ export async function upsertDatosFacturacion(
     );
     const ins = insertRes as { affectedRows: number; insertId: number };
     console.info(
-      `[facturacion] INSERT alumno_ref=${alumnoRef} affectedRows=${ins.affectedRows} insertId=${ins.insertId}`,
+      `[facturacion] INSERT alumno_ref=${alumnoRef} — affectedRows=${ins.affectedRows} insertId=${ins.insertId}`,
     );
     return { insertadas: 1, actualizadas: 0 };
   } catch (err) {
-    console.error("[facturacion] Error al guardar datos_facturacion:", err);
+    console.error("[facturacion] ERROR en upsert alumno_ref=${alumnoRef}:", err);
     throw err;
   }
 }

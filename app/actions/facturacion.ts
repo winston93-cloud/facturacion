@@ -45,8 +45,10 @@ export async function guardarFacturacion(
   });
 
   if (!parsed.success) {
+    // 2026-05-14: Mensaje general visible + errores por campo para no dejar al usuario sin feedback.
     return {
       ok: false,
+      message: "Por favor corrija los campos marcados en rojo antes de guardar.",
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
   }
@@ -56,7 +58,18 @@ export async function guardarFacturacion(
     return { ok: false, message: "Sesión inválida." };
   }
 
-  await upsertDatosFacturacion(alumnoRef, parsed.data);
+  // 2026-05-14: Captura errores de BD y retorna mensaje legible al usuario.
+  try {
+    const resultado = await upsertDatosFacturacion(alumnoRef, parsed.data);
+    console.info("[action] facturacion guardada:", resultado);
+  } catch (err) {
+    console.error("[action] Error guardando facturacion:", err);
+    return {
+      ok: false,
+      message: "Error al guardar en base de datos. Intente de nuevo o contacte soporte.",
+    };
+  }
+
   revalidatePath("/facturacion");
   return { ok: true, message: "Datos guardados correctamente." };
 }

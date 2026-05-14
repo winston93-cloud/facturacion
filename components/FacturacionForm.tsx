@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { useFormState, useFormStatus } from "react-dom";
+import { useRouter } from "next/navigation";
 
 import {
   guardarFacturacion,
@@ -13,6 +15,7 @@ import {
 } from "@/lib/constants/cfdi";
 
 // 2026-04-28: Formulario accesible, mobile-first; envío vía Server Action (mitigación CSRF integrada en Next).
+// 2026-05-14: Agrega toast de confirmación, auto-dismiss, router.refresh() y scroll al error.
 
 const inputClass =
   "min-h-[48px] w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-sm transition focus:border-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-600/20";
@@ -40,12 +43,36 @@ function SubmitButton() {
 type Props = { defaults: Record<string, string> };
 
 export function FacturacionForm({ defaults }: Props) {
+  const router = useRouter();
   const [state, formAction] = useFormState(
     guardarFacturacion,
     undefined as FacturacionActionState | undefined,
   );
 
   const fe = state && !state.ok ? state.fieldErrors : undefined;
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  const [toast, setToast] = useState<{ visible: boolean; msg: string }>({
+    visible: false,
+    msg: "",
+  });
+
+  // 2026-05-14: Muestra toast de éxito, refresca datos del servidor y lo cierra tras 4 s.
+  useEffect(() => {
+    if (state?.ok) {
+      setToast({ visible: true, msg: state.message });
+      router.refresh();
+      const t = setTimeout(() => setToast({ visible: false, msg: "" }), 4000);
+      return () => clearTimeout(t);
+    }
+  }, [state?.ok, state?.message, router]);
+
+  // 2026-05-14: Desplaza al mensaje de error para que el usuario lo vea.
+  useEffect(() => {
+    if (state && !state.ok) {
+      errorRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [state]);
+
   // 2026-04-28: Normaliza RFC sin espacios y en mayúsculas durante la captura.
   const onRfcInput = (e: React.FormEvent<HTMLInputElement>) => {
     e.currentTarget.value = e.currentTarget.value
@@ -60,21 +87,42 @@ export function FacturacionForm({ defaults }: Props) {
   };
 
   return (
+    <>
+      {/* 2026-05-14: Toast fijo en la parte inferior de la pantalla con confirmación de guardado. */}
+      {toast.visible && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 flex items-center gap-3 rounded-2xl border border-emerald-300 bg-emerald-600 px-6 py-4 text-white shadow-2xl shadow-emerald-900/30 animate-in fade-in slide-in-from-bottom-4 duration-300"
+        >
+          <svg className="h-5 w-5 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+          </svg>
+          <span className="text-sm font-semibold">{toast.msg}</span>
+          <button
+            type="button"
+            onClick={() => setToast({ visible: false, msg: "" })}
+            className="ml-2 rounded-full p-1 hover:bg-emerald-500 transition"
+            aria-label="Cerrar"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+          </button>
+        </div>
+      )}
+
     <form
       action={formAction}
       className="flex flex-col gap-10"
       noValidate
     >
-      {state?.ok ? (
-        <p
-          className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-900"
-          role="status"
-        >
-          {state.message}
-        </p>
-      ) : null}
       {!state?.ok && state?.message ? (
-        <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-900" role="alert">
+        <p
+          ref={errorRef}
+          className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-900"
+          role="alert"
+        >
           {state.message}
         </p>
       ) : null}
@@ -320,5 +368,6 @@ export function FacturacionForm({ defaults }: Props) {
         <SubmitButton />
       </div>
     </form>
+    </>
   );
 }
